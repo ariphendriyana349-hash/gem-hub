@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Team OS v2.2 | Online Production</title>
+    <style>
+        :root {
+            --bg: #010409; --sidebar: #0d1117; --accent: #58a6ff;
+            --text: #c9d1d9; --border: #30363d; --code: #7ee787;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg); color: var(--text);
+            margin: 0; display: flex; height: 100vh; overflow: hidden;
+        }
+
+        /* RESPONSIVE SIDEBARS */
+        .side-left { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        @media (max-width: 900px) { .side-left, .side-right { display: none; } } /* Hide sidebars on small mobile for focus */
+
+        textarea { flex-grow: 1; background: #161b22; color: var(--code); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.85rem; resize: none; outline: none; }
+
+        .main-content { flex: 1; padding: 20px; overflow-y: auto; position: relative; }
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; }
+        input#search { flex-grow: 1; background: var(--sidebar); border: 1px solid var(--border); padding: 12px; border-radius: 8px; color: white; outline: none; }
+        
+        .gem-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+        .card { 
+            background: var(--sidebar); border: 1px solid var(--border); padding: 15px; border-radius: 10px; 
+            text-decoration: none; color: inherit; transition: 0.2s; cursor: pointer; position: relative;
+        }
+        .card:hover { border-color: var(--accent); background: #161b22; transform: translateY(-2px); }
+        .open-link { position: absolute; top: 10px; right: 10px; font-size: 14px; color: var(--accent); text-decoration: none; }
+
+        .side-right { width: 320px; background: var(--sidebar); border-left: 1px solid var(--border); display: flex; flex-direction: column; }
+        .chat-header { padding: 15px; background: #161b22; border-bottom: 1px solid var(--border); font-weight: bold; color: var(--accent); display: flex; justify-content: space-between; }
+        .sync-feed { flex-grow: 1; padding: 15px; overflow-y: auto; font-size: 0.85rem; }
+        .msg { margin-bottom: 12px; padding: 10px; border-radius: 8px; background: #0d1117; border-left: 3px solid var(--accent); }
+        .msg b { display: block; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 3px; color: var(--accent); }
+
+        /* DM MODAL */
+        #dm-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .dm-window {
+            width: 90%; max-width: 400px; height: 500px; background: var(--sidebar); border: 1px solid var(--accent);
+            border-radius: 12px; display: flex; flex-direction: column;
+        }
+        .dm-logs { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .dm-input-container { padding: 15px; border-top: 1px solid var(--border); display: flex; gap: 10px; }
+        .bubble { padding: 8px 12px; border-radius: 10px; font-size: 13px; max-width: 85%; }
+        .bubble.me { background: var(--accent); color: white; align-self: flex-end; }
+        .bubble.bot { background: #21262d; align-self: flex-start; border-left: 2px solid var(--accent); }
+    </style>
+</head>
+<body>
+
+    <div class="side-left">
+        <h3 style="margin:0; font-size: 1rem; color: var(--accent);">Lead Scratchpad</h3>
+        <textarea id="notes" placeholder="// Tokens & Snippets..."></textarea>
+    </div>
+
+    <div class="main-content">
+        <div class="controls">
+            <input type="text" id="search" placeholder="Filter Team..." onkeyup="filterGems()">
+        </div>
+        <div class="gem-grid" id="grid"></div>
+        
+        <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px;">
+            <p style="font-size: 0.75rem; color: #8b949e;"><b>Production URL:</b> Ready for Cloud Deployment.</p>
+        </div>
+    </div>
+
+    <div class="side-right">
+        <div class="chat-header">Global Sync</div>
+        <div class="sync-feed">
+            <div class="msg"><b>NEO</b> Market logic finalized.</div>
+            <div class="msg"><b>UI EXPERT</b> Icons optimized for @2x/@3x.</div>
+            <div class="msg"><b>SYNTAX</b> Signal bridge v2.2 operational.</div>
+        </div>
+    </div>
+
+    <div id="dm-overlay">
+        <div class="dm-window">
+            <div class="chat-header">
+                <span id="dm-title">DM</span>
+                <button onclick="closeDM()" style="background:none; border:none; color:white; cursor:pointer; font-size: 20px;">✕</button>
+            </div>
+            <div id="dm-logs" class="dm-logs"></div>
+            <div class="dm-input-container">
+                <input type="text" id="dm-input" style="flex:1; background:transparent; border:1px solid var(--border); color:white; padding:10px; border-radius:5px;" placeholder="Message..." onkeypress="if(event.key==='Enter') sendDM()">
+                <button onclick="sendDM()" style="background:var(--accent); border:none; color:white; padding:10px; border-radius:5px; cursor:pointer;">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const gems = [
+            { n: "Neo / Strategy", r: "Blueprint", u: "https://gemini.google.com/gem/edc03e0dd3bc", reply: "Logic confirmed. Proceed." },
+            { n: "UI Expert", r: "Design", u: "https://gemini.google.com/gem/c2447f4f49f9", reply: "Styles are synced in the hub." },
+            { n: "Mobile Lead", r: "Implementation", u: "https://gemini.google.com/gem/26acb637ef5d", reply: "Standing by for the next sprint." },
+            { n: "Data/API", r: "Signals", u: "https://gemini.google.com/gem/20249252b29d", reply: "Socket connection stable." },
+            { n: "Systems", r: "Bridge", u: "https://gemini.google.com/gem/be1e9027921c", reply: "JSON Bridge v2.2 online." }
+        ];
+
+        let activeGem = null;
+
+        function render(data) {
+            document.getElementById('grid').innerHTML = data.map((g, i) => `
+                <div class="card" onclick="openDM(${i})">
+                    <a href="${g.u}" target="_blank" class="open-link" onclick="event.stopPropagation()">↗</a>
+                    <small style="color:var(--accent)">${g.r}</small>
+                    <h4 style="margin:5px 0;">${g.n}</h4>
+                </div>
+            `).join('');
+        }
+
+        function filterGems() {
+            const q = document.getElementById('search').value.toLowerCase();
+            render(gems.filter(g => g.n.toLowerCase().includes(q) || g.r.toLowerCase().includes(q)));
+        }
+
+        function openDM(idx) {
+            activeGem = gems[idx];
+            document.getElementById('dm-title').innerText = `Chat with ${activeGem.n}`;
+            document.getElementById('dm-overlay').style.display = 'flex';
+            document.getElementById('dm-logs').innerHTML = `<div class="bubble bot"><b>${activeGem.n}:</b> Ready for deployment. What's the status?</div>`;
+        }
+
+        function closeDM() { document.getElementById('dm-overlay').style.display = 'none'; }
+
+        function sendDM() {
+            const input = document.getElementById('dm-input');
+            if(!input.value) return;
+            const logs = document.getElementById('dm-logs');
+            logs.innerHTML += `<div class="bubble me">${input.value}</div>`;
+            const val = input.value; input.value = '';
+            setTimeout(() => {
+                logs.innerHTML += `<div class="bubble bot">${activeGem.reply}</div>`;
+                logs.scrollTop = logs.scrollHeight;
+            }, 600);
+        }
+
+        const pad = document.getElementById('notes');
+        pad.value = localStorage.getItem('v2_notes') || "";
+        pad.oninput = () => localStorage.setItem('v2_notes', pad.value);
+
+        render(gems);
+    </script>
+</body>
+</html>
